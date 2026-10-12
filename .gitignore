@@ -1,0 +1,19 @@
+# Dependencies and generated web assets
+**/node_modules/
+frontend/dist/
+
+# Local observations and generated QA artifacts
+.local-observations/
+deliverables/qa_clp/
+
+# Local document-authoring helpers and generated submission files
+deliverables/
+tools/
+
+# Runtime data produced on an individual machine
+backend/data/
+
+# Local environment settings
+.env
+.env.*
+!.env.example
