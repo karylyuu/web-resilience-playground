@@ -64,6 +64,18 @@ function retain<T>(list: T[], value: T) {
   }
 }
 
+// Fired whenever the fault context changes, so live views can react without polling.
+const contextListeners = new Set<() => void>();
+export function onContextChange(listener: () => void) {
+  contextListeners.add(listener);
+  return () => {
+    contextListeners.delete(listener);
+  };
+}
+function notifyContextChange() {
+  for (const listener of contextListeners) listener();
+}
+
 export function currentContext(): Context {
   return { ...context, faults: [...context.faults] };
 }
@@ -80,6 +92,7 @@ export function transition(faults: string[], reason: string) {
     at: new Date().toISOString(),
     reason,
   });
+  notifyContextChange();
 }
 
 export function newRun() {
@@ -94,6 +107,7 @@ export function newRun() {
     at: new Date().toISOString(),
     reason: "새 관찰 시작 (기존 세션 기록 보존)",
   });
+  notifyContextChange();
   return context.runId;
 }
 

@@ -1,6 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
-import { api, recordBrowser, setObservationScope, time, useLive } from "./api";
+import {
+  api,
+  recordBrowser,
+  time,
+  useAssetRevision,
+  useLabStream,
+  useLive,
+} from "./api";
 import { Lab } from "./Lab";
 import {
   Community,
@@ -11,7 +18,7 @@ import {
   News,
   VideoView,
 } from "./Portal";
-import type { Diagnostic, Profile } from "./types";
+import type { Profile } from "./types";
 import "./App.css";
 
 const navigation = [
@@ -35,15 +42,15 @@ function App() {
   const [loginOpen, setLoginOpen] = useState(false);
   const [assetVersion, setAssetVersion] = useState(0);
   const [styleMessage, setStyleMessage] = useState("포털 스타일 수신 중");
-  const lab = useLive<Diagnostic>("/api/lab", 1500);
+  const lab = useLabStream();
+  // Manual reloads and fault changes both re-request the image and stylesheet.
+  const assetRevision = useAssetRevision();
+  const assetKey = assetVersion + assetRevision;
   const pulse = useLive<{ serverAt: string; uptimeSeconds: number }>(
     "/api/pulse",
     3000,
   );
 
-  useEffect(() => {
-    if (lab.data) setObservationScope(lab.data);
-  }, [lab.data]);
   useEffect(() => {
     const timer = setInterval(() => setNow(new Date()), 1000);
     const change = () => setPage(currentPage());
@@ -56,10 +63,18 @@ function App() {
   useEffect(() => {
     const link = document.createElement("link");
     link.rel = "stylesheet";
+    link.dataset.portalStyle = "";
     const requestId = crypto.randomUUID();
-    link.href = `/api/assets/portal.css?v=${assetVersion}&rid=${requestId}`;
+    link.href = `/api/assets/portal.css?v=${assetKey}&rid=${requestId}`;
     const start = performance.now();
+    // Keep the current stylesheet until the new request settles, so a reload
+    // that succeeds does not flash an unstyled page.
+    const settle = () =>
+      document
+        .querySelectorAll("link[data-portal-style]")
+        .forEach((other) => other !== link && other.remove());
     link.onload = () => {
+      settle();
       setStyleMessage("");
       recordBrowser(
         "style-loaded",
@@ -70,6 +85,7 @@ function App() {
       );
     };
     link.onerror = () => {
+      settle();
       setStyleMessage(
         "포털 스타일 파일 수신 실패. 아래 포털은 CSS 없이 표시될 수 있습니다.",
       );
@@ -85,9 +101,15 @@ function App() {
     return () => {
       link.onload = null;
       link.onerror = null;
-      link.remove();
     };
-  }, [assetVersion]);
+  }, [assetKey]);
+  useEffect(
+    () => () =>
+      document
+        .querySelectorAll("link[data-portal-style]")
+        .forEach((link) => link.remove()),
+    [],
+  );
 
   const navigate = (next: string) => {
     window.location.hash = next;
@@ -198,7 +220,7 @@ function App() {
                         살아 있는 웹 둘러보기 <span>↗</span>
                       </button>
                     </div>
-                    <LabImage key={assetVersion} version={assetVersion} />
+                    <LabImage key={assetKey} version={assetKey} />
                   </div>
                   <div className="cover-bottom">
                     <span>READ. EXPLORE. OBSERVE.</span>

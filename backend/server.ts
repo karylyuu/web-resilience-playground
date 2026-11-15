@@ -12,7 +12,13 @@ import {
   setFault,
 } from "./faults";
 import type { FaultKey } from "./faults";
-import { addBrowserEvent, newRun, observeRequest, snapshot } from "./telemetry";
+import {
+  addBrowserEvent,
+  newRun,
+  observeRequest,
+  onContextChange,
+  snapshot,
+} from "./telemetry";
 import { market, news } from "./providers";
 import { exportWorkbook } from "./workbook";
 
@@ -74,13 +80,45 @@ app.use((request, response, next) => {
 app.use(express.json({ limit: "64kb" }));
 
 // Control and observation paths are deliberately not passed through fault injection.
-app.get("/api/lab", (_request, response) =>
-  response.json({
-    ...snapshot(false, true),
-    catalog: faultState(),
-    allocatedMiB: allocatedMiB(),
-  }),
-);
+const labState = () => ({
+  ...snapshot(false, true),
+  catalog: faultState(),
+  allocatedMiB: allocatedMiB(),
+});
+app.get("/api/lab", (_request, response) => response.json(labState()));
+
+// Live stream: the same state as /api/lab, pushed immediately when a fault
+// changes and once per second otherwise. Browsers no longer need to refresh.
+const streams = new Set<express.Response>();
+let pendingChange: NodeJS.Immediate | undefined;
+function broadcast(cause: "change" | "tick") {
+  if (!streams.size) return;
+  const message = `event: lab\ndata: ${JSON.stringify({ ...labState(), cause })}\n\n`;
+  for (const stream of streams) stream.write(message);
+}
+onContextChange(() => {
+  // "Release all" flips several faults in one call; send one combined update.
+  if (pendingChange) return;
+  pendingChange = setImmediate(() => {
+    pendingChange = undefined;
+    broadcast("change");
+  });
+});
+const streamTimer = setInterval(() => broadcast("tick"), 1000);
+streamTimer.unref();
+app.get("/api/lab/stream", (request, response) => {
+  response.writeHead(200, {
+    "Content-Type": "text/event-stream; charset=utf-8",
+    "Cache-Control": "no-cache, no-transform",
+    Connection: "keep-alive",
+    "X-Accel-Buffering": "no",
+  });
+  response.write(
+    `retry: 2000\nevent: lab\ndata: ${JSON.stringify({ ...labState(), cause: "change" })}\n\n`,
+  );
+  streams.add(response);
+  request.on("close", () => streams.delete(response));
+});
 app.post("/api/lab/browser", (request, response) => {
   addBrowserEvent(request.body ?? {});
   response.sendStatus(204);
@@ -329,6 +367,7 @@ async function start() {
   });
   const shutdown = () => {
     releaseAll();
+    for (const stream of streams) stream.end();
     server.close(() => process.exit(0));
   };
   process.once("SIGINT", shutdown);

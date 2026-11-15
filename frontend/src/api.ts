@@ -5,7 +5,7 @@ import {
   useState,
   useSyncExternalStore,
 } from "react";
-import type { Scope } from "./types";
+import type { Diagnostic, Scope } from "./types";
 
 let currentScope: Partial<Scope> = {};
 export function setObservationScope(scope: Scope) {
@@ -59,6 +59,86 @@ export function recordBrowser(
       lostBrowserEvents += 1;
       deliveryListeners.forEach((listener) => listener());
     });
+}
+
+// Live fault changes. Every hook that loads data re-requests as soon as the
+// fault configuration changes, so the effect shows up without a page refresh.
+type Store = { value: number; listeners: Set<() => void> };
+const createStore = (): Store => ({ value: 0, listeners: new Set() });
+const faultStore = createStore();
+const assetStore = createStore();
+function bump(store: Store) {
+  store.value += 1;
+  store.listeners.forEach((listener) => listener());
+}
+function useStore(store: Store) {
+  return useSyncExternalStore(
+    (listener) => {
+      store.listeners.add(listener);
+      return () => {
+        store.listeners.delete(listener);
+      };
+    },
+    () => store.value,
+  );
+}
+/** Increases whenever any fault is turned on or off. */
+export const useFaultRevision = () => useStore(faultStore);
+/** Increases whenever the image or stylesheet fault is turned on or off. */
+export const useAssetRevision = () => useStore(assetStore);
+
+const assetFaultKeys = ["image-error", "style-error"];
+const enabledAssetFaults = (data: Diagnostic) =>
+  data.catalog
+    .filter((fault) => fault.enabled && assetFaultKeys.includes(fault.key))
+    .map((fault) => fault.key)
+    .sort()
+    .join(",");
+
+export function useLabStream() {
+  const [data, setData] = useState<Diagnostic | null>(null);
+  const [error, setError] = useState("");
+  const lastSegment = useRef<string | null>(null);
+  const lastAssets = useRef<string | null>(null);
+
+  const accept = useCallback((next: Diagnostic) => {
+    // Update the scope first so the re-requests below carry the new segment.
+    setObservationScope(next);
+    setData(next);
+    setError("");
+    const segment = `${next.runId}:${next.segment}`;
+    const assets = enabledAssetFaults(next);
+    if (lastSegment.current !== null && lastSegment.current !== segment)
+      bump(faultStore);
+    if (lastAssets.current !== null && lastAssets.current !== assets)
+      bump(assetStore);
+    lastSegment.current = segment;
+    lastAssets.current = assets;
+  }, []);
+
+  useEffect(() => {
+    const source = new EventSource("/api/lab/stream");
+    source.addEventListener("lab", (event) => {
+      try {
+        accept(JSON.parse((event as MessageEvent<string>).data));
+      } catch {
+        setError("실시간 데이터를 읽지 못했어요.");
+      }
+    });
+    source.onerror = () =>
+      setError("실험 서버와 연결이 끊겼어요. 다시 연결하는 중…");
+    return () => source.close();
+  }, [accept]);
+
+  const refresh = useCallback(async () => {
+    try {
+      accept(await api<Diagnostic>("/api/lab"));
+    } catch (failure) {
+      setError(failure instanceof Error ? failure.message : "상태 요청 실패");
+    }
+  }, [accept]);
+
+  return { data, error, refresh };
 }
 
 export async function api<T>(
@@ -136,6 +216,7 @@ export function useLive<T>(path: string, interval: number, enabled = true) {
   const [revision, setRevision] = useState(0);
   const generation = useRef(0);
   const refresh = useCallback(() => setRevision((value) => value + 1), []);
+  const faultRevision = useFaultRevision();
 
   useEffect(() => {
     if (!enabled) return;
@@ -179,7 +260,7 @@ export function useLive<T>(path: string, interval: number, enabled = true) {
       clearTimeout(timer);
       controller?.abort();
     };
-  }, [path, interval, enabled, revision]);
+  }, [path, interval, enabled, revision, faultRevision]);
 
   return { data, error, loading, receivedAt, refresh };
 }

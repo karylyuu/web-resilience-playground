@@ -1,0 +1,19 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "api-3100",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev", "--prefix", "backend"],
+      "env": { "PORT": "3100" },
+      "port": 3100
+    },
+    {
+      "name": "web-5175",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev", "--prefix", "frontend", "--", "--port", "5175", "--strictPort"],
+      "env": { "API_TARGET": "http://127.0.0.1:3100" },
+      "port": 5175
+    }
+  ]
+}

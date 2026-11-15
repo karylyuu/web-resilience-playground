@@ -183,6 +183,57 @@ test("이미지와 CSS 전달 장애는 독립적이며 해제 후 실제 파일
   );
 });
 
+test("실시간 스트림은 장애 변경을 새로고침 없이 즉시 전달한다", async () => {
+  const controller = new AbortController();
+  const response = await fetch(`${root}/api/lab/stream`, {
+    signal: controller.signal,
+  });
+  assert.equal(response.status, 200);
+  assert.match(response.headers.get("content-type") ?? "", /text\/event-stream/);
+  const reader = response.body!.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  const nextEvent = async () => {
+    while (!buffer.includes("\n\n")) {
+      const { value, done } = await reader.read();
+      assert.ok(!done, "stream ended early");
+      buffer += decoder.decode(value, { stream: true });
+    }
+    const end = buffer.indexOf("\n\n");
+    const block = buffer.slice(0, end);
+    buffer = buffer.slice(end + 2);
+    const data = block
+      .split("\n")
+      .find((line) => line.startsWith("data: "))!
+      .slice(6);
+    return JSON.parse(data);
+  };
+  try {
+    const first = await nextEvent();
+    assert.equal(first.cause, "change");
+    assert.equal(first.catalog.length, 8);
+    const before = first.segment;
+    const toggledAt = Date.now();
+    await fault("image-error", true);
+    let event = await nextEvent();
+    while (event.cause !== "change") event = await nextEvent();
+    // Pushed on the change itself, not on the next once-per-second tick.
+    assert.ok(Date.now() - toggledAt < 900);
+    assert.equal(event.segment, before + 1);
+    assert.ok(
+      event.catalog.some(
+        (item: any) => item.key === "image-error" && item.enabled,
+      ),
+    );
+    await post("/api/lab/release");
+    event = await nextEvent();
+    while (event.cause !== "change") event = await nextEvent();
+    assert.ok(event.catalog.every((item: any) => !item.enabled));
+  } finally {
+    controller.abort();
+  }
+});
+
 test("연결 중단 요청은 완료 HTTP 코드가 아니라 disconnected로 기록된다", async () => {
   await fault("connection-cut", true);
   await assert.rejects(() => fetch(`${root}/api/pulse`));
