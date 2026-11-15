@@ -1,0 +1,14 @@
+{
+  "name": "web-resilience-playground",
+  "private": true,
+  "description": "re:silience — 웹 서비스에 장애를 넣고 화면과 서버의 변화를 실시간으로 관찰하는 실험실",
+  "scripts": {
+    "setup": "npm install --prefix backend && npm install --prefix frontend",
+    "build": "npm run build --prefix frontend",
+    "start": "npm run build && npm start --prefix backend",
+    "dev:api": "npm run dev --prefix backend",
+    "dev:web": "npm run dev --prefix frontend",
+    "check": "npm run check --prefix backend && npm run lint --prefix frontend",
+    "test": "npm test --prefix backend"
+  }
+}

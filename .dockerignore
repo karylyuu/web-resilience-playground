@@ -1,0 +1,9 @@
+**/node_modules
+frontend/dist
+backend/data
+.git
+.claude
+.local-observations
+deliverables
+tools
+*.md

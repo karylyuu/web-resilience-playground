@@ -24,6 +24,12 @@ import { exportWorkbook } from "./workbook";
 
 const app = express();
 const port = Number(process.env.PORT ?? 3000);
+// 127.0.0.1 keeps the lab on this PC. Set HOST=0.0.0.0 to open it to other
+// devices on the same network (Docker does this inside the container).
+const host = process.env.HOST ?? "127.0.0.1";
+// Built web app served by this same server, so one command runs everything.
+const webDirectory =
+  process.env.WEB_DIR ?? path.join(__dirname, "..", "frontend", "dist");
 const dataDirectory = process.env.DATA_DIR ?? path.join(__dirname, "data");
 const communityFile = path.join(dataDirectory, "community.json");
 const sessions = new Map<string, number>();
@@ -40,19 +46,23 @@ let persistence: Promise<void> = Promise.resolve();
 
 app.disable("x-powered-by");
 app.use((request, response, next) => {
-  // The lab is loopback-only. Cross-origin scripts must not operate fault controls.
+  // Only the lab's own page (same host) or a local dev server may call the API.
+  // Other websites open in the same browser must not operate fault controls.
   const origin = request.headers.origin;
   if (origin) {
-    let hostname = "";
+    let parsed: URL | undefined;
     try {
-      hostname = new URL(origin).hostname;
+      parsed = new URL(origin);
     } catch {
       /* Invalid origins are rejected below. */
     }
-    if (hostname !== "localhost" && hostname !== "127.0.0.1") {
+    const sameHost = parsed?.host === request.headers.host;
+    const loopback =
+      parsed?.hostname === "localhost" || parsed?.hostname === "127.0.0.1";
+    if (!sameHost && !loopback) {
       response
         .status(403)
-        .json({ message: "로컬 실험 페이지에서만 접근할 수 있습니다." });
+        .json({ message: "실험 페이지에서만 사용할 수 있어요." });
       return;
     }
     response.setHeader("Access-Control-Allow-Origin", origin);
@@ -131,7 +141,7 @@ app.post("/api/lab/faults/:key", (request, response) => {
   ) {
     response
       .status(400)
-      .json({ message: "유효한 장애 유형과 enabled 값이 필요합니다." });
+      .json({ message: "알 수 없는 장애이거나 켜기/끄기 값이 없어요." });
     return;
   }
   const delayMs = request.body.delayMs ?? null;
@@ -145,11 +155,11 @@ app.post("/api/lab/faults/:key", (request, response) => {
   ) {
     response.status(400).json({
       message:
-        "API 지연은 1~10,000 ms 또는 빈 값(해제까지 대기)으로 설정하세요. 범위는 안전 제한입니다.",
+        "지연 시간은 1~10,000 ms로 넣거나, 비워 두세요(끌 때까지 멈춤).",
     });
     return;
   }
-  setFault(key, request.body.enabled, "사용자 변경", delayMs);
+  setFault(key, request.body.enabled, "직접 변경", delayMs);
   response.json({ catalog: faultState() });
 });
 app.post("/api/lab/release", (_request, response) => {
@@ -158,13 +168,13 @@ app.post("/api/lab/release", (_request, response) => {
 });
 app.post("/api/lab/runs", (_request, response) => {
   if (faultState().some((fault) => fault.enabled)) {
-    response.status(409).json({ message: "진행 중인 장애를 먼저 해제하세요." });
+    response.status(409).json({ message: "켜져 있는 장애를 먼저 꺼 주세요." });
     return;
   }
   if (snapshot().inFlight) {
     response
       .status(409)
-      .json({ message: "진행 중 요청이 끝난 뒤 새 관찰을 시작하세요." });
+      .json({ message: "응답을 기다리는 요청이 끝난 뒤에 시작해 주세요." });
     return;
   }
   response.json({ runId: newRun() });
@@ -179,6 +189,24 @@ app.get("/api/lab/export", async (request, response) => {
   response
     .type("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
     .send(buffer);
+});
+
+// The lab's own web files are served here, before fault injection, so turning
+// on a fault never breaks the lab page itself. Only /api paths are experiments.
+const serveWeb = express.static(webDirectory);
+app.use((request, response, next) => {
+  if (request.path.startsWith("/api/")) {
+    next();
+    return;
+  }
+  serveWeb(request, response, () =>
+    response
+      .status(404)
+      .type("text/plain; charset=utf-8")
+      .send(
+        "화면 파일이 없어요. 프로젝트 폴더에서 `npm run build`를 먼저 실행하세요. (개발 중이라면 frontend에서 `npm run dev`)",
+      ),
+  );
 });
 
 app.use(observeRequest, injectFault);
@@ -229,7 +257,7 @@ app.post("/api/auth/login", (request, response) => {
   ) {
     response
       .status(401)
-      .json({ message: "이메일 또는 비밀번호가 일치하지 않습니다." });
+      .json({ message: "이메일 또는 비밀번호가 맞지 않아요." });
     return;
   }
   for (const [token, expires] of sessions)
@@ -254,7 +282,7 @@ function authorize(
   if ((sessions.get(token) ?? 0) < Date.now()) {
     response
       .status(401)
-      .json({ message: "로그인 세션이 필요합니다. 다시 로그인하세요." });
+      .json({ message: "로그인이 필요해요. 다시 로그인해 주세요." });
     return;
   }
   next();
@@ -281,13 +309,13 @@ app.get("/api/community", (_request, response) =>
 app.post("/api/community", authorize, async (request, response) => {
   const text = String(request.body?.text ?? "").trim();
   if (!text || text.length > 1000) {
-    response.status(400).json({ message: "글은 1~1000자로 입력하세요." });
+    response.status(400).json({ message: "글은 1~1,000자로 써 주세요." });
     return;
   }
   if (posts.length >= 1000) {
     response
       .status(409)
-      .json({ message: "로컬 보관 한도 1,000개에 도달했습니다." });
+      .json({ message: "글은 최대 1,000개까지 저장할 수 있어요." });
     return;
   }
   const post: Post = {
@@ -320,7 +348,7 @@ app.post("/api/community/:id/:action", authorize, async (request, response) => {
     if (!text || text.length > 500 || post.comments.length >= 200) {
       response
         .status(400)
-        .json({ message: "댓글은 1~500자, 글당 최대 200개입니다." });
+        .json({ message: "댓글은 1~500자, 글 하나에 200개까지 달 수 있어요." });
       return;
     }
     post.comments.push({
@@ -337,7 +365,7 @@ app.post("/api/community/:id/:action", authorize, async (request, response) => {
 });
 
 app.use((_request, response) =>
-  response.status(404).json({ message: "경로를 찾을 수 없습니다." }),
+  response.status(404).json({ message: "없는 주소예요." }),
 );
 app.use(
   (
@@ -358,8 +386,10 @@ async function start() {
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
   }
-  const server = app.listen(port, "127.0.0.1", () =>
-    console.log(`RESILIENCE API http://127.0.0.1:${port}`),
+  const server = app.listen(port, host, () =>
+    console.log(
+      `re:silience → http://${host === "0.0.0.0" ? "localhost" : host}:${port}`,
+    ),
   );
   server.on("error", (error) => {
     console.error(error);
