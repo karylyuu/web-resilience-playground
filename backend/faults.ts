@@ -5,58 +5,55 @@ import { transition } from "./telemetry";
 export const catalog = [
   {
     key: "api-hold",
-    label: "API 지연·대기",
+    label: "API 응답 지연",
     mechanism:
-      "입력한 시간만큼 API 처리를 보류합니다. 시간을 비우면 해제할 때까지 대기합니다. 설정값과 실제 응답시간은 별도로 기록합니다.",
-    scope: "JSON API · 최대 60초",
+      "서버가 입력한 시간만큼 기다렸다가 응답해요. 시간을 비우면 장애를 끌 때까지 응답하지 않아요.",
+    scope: "뉴스·시세·카페 등 데이터 요청",
   },
   {
     key: "api-error",
     label: "API 오류 응답",
-    mechanism:
-      "JSON API가 HTTP 503을 반환합니다. 화면의 오류 처리를 관찰합니다.",
-    scope: "JSON API",
+    mechanism: "서버가 데이터 대신 '503 일시적 오류'를 돌려줘요.",
+    scope: "뉴스·시세·카페 등 데이터 요청",
   },
   {
     key: "connection-cut",
-    label: "응답 연결 끊김",
-    mechanism: "응답 전 HTTP 소켓을 닫습니다. 실제 패킷 손실과는 다릅니다.",
-    scope: "로컬 서비스의 새 요청",
+    label: "연결 끊김",
+    mechanism: "서버가 응답하기 전에 연결을 끊어 버려요.",
+    scope: "이 서비스의 모든 새 요청",
   },
   {
     key: "invalid-json",
-    label: "응답 데이터 손상",
+    label: "깨진 데이터",
     mechanism:
-      "JSON 응답을 잘린 본문으로 전송합니다. HTTP 성공과 파싱 실패를 구분합니다.",
-    scope: "JSON API",
+      "응답은 '성공(200)'인데 내용이 중간에 잘려 있어요. 화면이 데이터를 읽지 못해요.",
+    scope: "뉴스·시세·카페 등 데이터 요청",
   },
   {
     key: "image-error",
     label: "이미지 전달 실패",
-    mechanism:
-      "로컬 이미지 요청에 HTTP 503을 반환합니다. 받은 이미지는 그대로 남을 수 있습니다.",
-    scope: "실험 이미지 파일",
+    mechanism: "홈 화면의 그림 파일을 보내지 않아요.",
+    scope: "홈 화면 그림",
   },
   {
     key: "style-error",
-    label: "스타일 파일 전달 실패",
+    label: "스타일(CSS) 전달 실패",
     mechanism:
-      "포털 전용 CSS 요청을 거절합니다. 새로 불러올 때 브라우저 기본 표현을 관찰합니다.",
-    scope: "포털 CSS · 실험 패널 제외",
+      "화면 디자인 파일(CSS)을 보내지 않아요. 글자와 배치가 기본 모양으로 바뀌어요.",
+    scope: "서비스 화면 디자인 · 실험 패널은 제외",
   },
   {
     key: "cpu-work",
-    label: "CPU 연산 경합",
+    label: "서버 CPU 과부하",
     mechanism:
-      "서버 이벤트 루프에서 해시 연산을 반복합니다. CPU와 요청 지연을 함께 측정합니다.",
-    scope: "서버 프로세스 · 최대 60초",
+      "서버가 무거운 계산을 계속 돌려서 다른 요청을 처리할 여유가 줄어들어요.",
+    scope: "실험 서버 프로그램",
   },
   {
     key: "memory-work",
-    label: "메모리 점유 증가",
-    mechanism:
-      "실제 버퍼 64 MiB를 할당하고 유지합니다. 해제 뒤 RSS 반환은 런타임에 달려 있습니다.",
-    scope: "64 MiB 상한 · 최대 60초",
+    label: "서버 메모리 점유",
+    mechanism: "서버가 메모리 64 MiB를 붙잡고 놓지 않아요.",
+    scope: "최대 64 MiB",
   },
 ] as const;
 
@@ -93,7 +90,7 @@ function cpuWork() {
 export function setFault(
   key: FaultKey,
   active: boolean,
-  reason = "사용자 변경",
+  reason = "직접 변경",
   delayMs: number | null = null,
 ) {
   if (!catalog.some((item) => item.key === key))
@@ -105,7 +102,7 @@ export function setFault(
     timers.set(
       key,
       setTimeout(
-        () => setFault(key, false, "60초 안전 제한으로 자동 해제"),
+        () => setFault(key, false, "60초가 지나 자동으로 꺼짐"),
         60000,
       ),
     );
@@ -124,7 +121,7 @@ export function setFault(
   }
   const setting =
     key === "api-hold" && active
-      ? ` (설정: ${configuredDelayMs === null ? "해제까지 대기" : `${configuredDelayMs} ms`})`
+      ? ` (설정: ${configuredDelayMs === null ? "끌 때까지 멈춤" : `${configuredDelayMs} ms`})`
       : "";
   transition(
     [...enabled.keys()],
@@ -133,7 +130,7 @@ export function setFault(
 }
 
 export function releaseAll() {
-  for (const key of [...enabled.keys()]) setFault(key, false, "전체 해제");
+  for (const key of [...enabled.keys()]) setFault(key, false, "모두 끄기");
 }
 
 export const injectFault: RequestHandler = async (request, response, next) => {
@@ -160,7 +157,7 @@ export const injectFault: RequestHandler = async (request, response, next) => {
   }
   if (hasFault("api-error") && !isAsset) {
     response.status(503).json({
-      message: "로컬 API가 503을 반환했습니다.",
+      message: "서버가 일시적으로 응답할 수 없어요. (503)",
       injected: "api-error",
     });
     return;

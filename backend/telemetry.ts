@@ -105,7 +105,7 @@ export function newRun() {
   retain(transitions, {
     ...currentContext(),
     at: new Date().toISOString(),
-    reason: "새 관찰 시작 (기존 세션 기록 보존)",
+    reason: "새 기록 시작",
   });
   notifyContextChange();
   return context.runId;
@@ -311,5 +311,5 @@ export function snapshot(allRuns = false, forScreen = false) {
 retain(transitions, {
   ...currentContext(),
   at: new Date().toISOString(),
-  reason: "서버 관찰 시작",
+  reason: "서버 시작",
 });

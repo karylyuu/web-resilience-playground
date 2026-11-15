@@ -41,7 +41,7 @@ function App() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loginOpen, setLoginOpen] = useState(false);
   const [assetVersion, setAssetVersion] = useState(0);
-  const [styleMessage, setStyleMessage] = useState("포털 스타일 수신 중");
+  const [styleMessage, setStyleMessage] = useState("");
   const lab = useLabStream();
   // Manual reloads and fault changes both re-request the image and stylesheet.
   const assetRevision = useAssetRevision();
@@ -87,7 +87,7 @@ function App() {
     link.onerror = () => {
       settle();
       setStyleMessage(
-        "포털 스타일 파일 수신 실패. 아래 포털은 CSS 없이 표시될 수 있습니다.",
+        "스타일 파일(CSS)을 받지 못해서 화면이 기본 모양으로 보이고 있어요.",
       );
       recordBrowser(
         "style-error",
@@ -130,7 +130,7 @@ function App() {
       setProfile(null);
     } catch (error) {
       setStyleMessage(
-        error instanceof Error ? error.message : "로그아웃 요청 실패",
+        error instanceof Error ? error.message : "로그아웃하지 못했어요.",
       );
     }
   };
@@ -172,7 +172,7 @@ function App() {
         <div className="service-column">
           <div className="service-boundary">
             <span>
-              <i /> LIVE SERVICE / 실험 대상
+              <i /> 실험 대상 서비스
             </span>
             <button onClick={() => setAssetVersion((value) => value + 1)}>
               이미지·스타일 다시 받기 ↻
@@ -185,7 +185,7 @@ function App() {
                 aria-label="뉴스 검색"
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
-                placeholder="뉴스의 제목, 출처, 관심사를 검색하세요"
+                placeholder="뉴스 검색"
               />
               <button aria-label="검색 실행">검색 ↗</button>
             </form>
@@ -205,19 +205,19 @@ function App() {
                   </div>
                   <div className="cover-body">
                     <div>
-                      <p className="eyebrow">연결의 일상, 변화의 관찰.</p>
+                      <p className="eyebrow">웹 복원력 실험실</p>
                       <h1>
                         Life stays
                         <br />
                         <em>connected.</em>
                       </h1>
                       <p className="cover-copy">
-                        평범하게 흐르던 서비스.
+                        평소처럼 쓰던 서비스에 장애가 생기면
                         <br />
-                        연결이 달라지면, 무엇이 달라질까요?
+                        화면에서는 무슨 일이 일어날까요?
                       </p>
                       <button onClick={() => navigate("news")}>
-                        살아 있는 웹 둘러보기 <span>↗</span>
+                        서비스 둘러보기 <span>↗</span>
                       </button>
                     </div>
                     <LabImage key={assetKey} version={assetKey} />
@@ -238,28 +238,23 @@ function App() {
                 </div>
                 <section className="pulse-card">
                   <div>
-                    <p className="eyebrow">
-                      SERVER CONNECTION / 실제 연결 확인
-                    </p>
+                    <p className="eyebrow">서버 연결 확인</p>
                     <h3>
                       {pulse.loading
-                        ? "서버의 다음 응답을 기다리는 중…"
+                        ? "서버 응답을 기다리는 중…"
                         : pulse.error
-                          ? "새 응답을 받지 못했습니다."
-                          : "서버에서 도착한 지금."}
+                          ? "서버에서 응답이 오지 않아요."
+                          : "서버와 연결되어 있어요."}
                     </h3>
                     <p>
-                      서버 시각 <b>{time(pulse.data?.serverAt)}</b> · 브라우저
-                      수신 {time(pulse.receivedAt)}
+                      서버 시각 <b>{time(pulse.data?.serverAt)}</b> · 받은 시각{" "}
+                      {time(pulse.receivedAt)}
                     </p>
                   </div>
                   <button onClick={pulse.refresh} disabled={pulse.loading}>
                     연결 확인 ↻
                   </button>
-                  <small>
-                    이 요청은 3초 간격의 관측용 API입니다. 뉴스·시세와 구분해
-                    기록됩니다.
-                  </small>
+                  <small>3초마다 자동으로 확인해요.</small>
                 </section>
                 {pulse.error && (
                   <ErrorNote
@@ -287,17 +282,13 @@ function App() {
             )}
             {!navigation.some(([id]) => id === page) && page !== "search" && (
               <section>
-                <h2>페이지를 찾을 수 없습니다.</h2>
+                <h2>페이지를 찾을 수 없어요.</h2>
                 <button onClick={() => navigate("home")}>홈으로</button>
               </section>
             )}
             <footer className="portal-footer">
               <span>re:silience.</span>
-              <p>서비스는 실제로 요청하고, 관찰은 있는 그대로 기록합니다.</p>
-              <small>
-                로컬 장애 주입은 외부 뉴스·거래소·지도·YouTube 서버를 공격하지
-                않습니다.
-              </small>
+              <p>웹 복원력 실험실 · 2026 CLP</p>
             </footer>
           </div>
         </div>
@@ -343,7 +334,7 @@ function LoginDialog({
         }),
       );
     } catch (failure) {
-      setError(failure instanceof Error ? failure.message : "로그인 실패");
+      setError(failure instanceof Error ? failure.message : "로그인하지 못했어요.");
     } finally {
       setBusy(false);
     }
@@ -359,8 +350,8 @@ function LoginDialog({
         ×
       </button>
       <p className="eyebrow">YOUR PERSONAL SPACE</p>
-      <h2>다시, 연결.</h2>
-      <p className="muted">실험용 로컬 계정으로 로그인하세요.</p>
+      <h2>로그인</h2>
+      <p className="muted">실험용 계정이 미리 채워져 있어요.</p>
       <form onSubmit={submit}>
         <label>
           이메일
@@ -389,7 +380,7 @@ function LoginDialog({
           </p>
         )}
         <button className="login-submit" disabled={busy}>
-          {busy ? "인증 요청 중…" : "로그인 →"}
+          {busy ? "로그인 중…" : "로그인 →"}
         </button>
       </form>
       <small>
@@ -397,7 +388,7 @@ function LoginDialog({
         <br />
         표시 이름 karylyuu · 세션 유효시간 1시간
         <br />
-        공개 데모 계정입니다. 실제 개인정보를 입력하지 마세요.
+        실제 개인정보는 넣지 마세요.
       </small>
     </dialog>
   );

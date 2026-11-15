@@ -178,7 +178,7 @@ export async function api<T>(
       data = await response.json();
     } catch {
       throw new Error(
-        `HTTP ${status} 응답 본문을 JSON으로 해석하지 못했습니다.`,
+        `HTTP ${status} 응답을 읽지 못했어요. (데이터 형식 오류)`,
       );
     }
     if (!response.ok)
@@ -199,7 +199,7 @@ export async function api<T>(
       recordBrowser(
         "request-error",
         path,
-        status ? message : `응답을 수신하지 못함: ${message}`,
+        status ? message : `응답을 받지 못했어요: ${message}`,
         performance.now() - start,
         id,
         scope,
@@ -230,7 +230,7 @@ export function useLive<T>(path: string, interval: number, enabled = true) {
       const timeout = setTimeout(
         () =>
           controller.abort(
-            new DOMException("20초 클라이언트 제한 초과", "TimeoutError"),
+            new DOMException("20초 동안 응답이 없어 요청을 멈췄어요", "TimeoutError"),
           ),
         20000,
       );
@@ -244,7 +244,7 @@ export function useLive<T>(path: string, interval: number, enabled = true) {
       } catch (failure) {
         if (!stopped)
           setError(
-            failure instanceof Error ? failure.message : "데이터 요청 실패",
+            failure instanceof Error ? failure.message : "불러오지 못했어요.",
           );
       } finally {
         clearTimeout(timeout);
@@ -268,7 +268,7 @@ export function useLive<T>(path: string, interval: number, enabled = true) {
 export function time(value: string | null | undefined) {
   return value
     ? new Date(value).toLocaleTimeString("ko-KR", { hour12: false })
-    : "아직 수신 없음";
+    : "—";
 }
 
 export function number(value: number | null | undefined, digits = 1) {

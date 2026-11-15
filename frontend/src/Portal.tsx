@@ -31,12 +31,11 @@ export function News({
           <h2>{query ? `“${query}” 검색 결과` : "지금, 읽을 거리"}</h2>
         </div>
         <button onClick={feed.refresh} disabled={feed.loading}>
-          {feed.loading ? "수신 중…" : "새로 받기 ↻"}
+          {feed.loading ? "불러오는 중…" : "새로 받기 ↻"}
         </button>
       </div>
       <p className="data-note">
-        연합뉴스 · BBC Technology · CoinDesk RSS / 60초 간격 확인 · 원문은 외부
-        사이트에서 열립니다.
+        연합뉴스 · BBC · CoinDesk 기사를 1분마다 확인해요.
       </p>
       {feed.error && (
         <ErrorNote
@@ -72,15 +71,14 @@ export function News({
             <time>
               {story.publishedAt
                 ? new Date(story.publishedAt).toLocaleString("ko-KR")
-                : "발행 시각 미제공"}
+                : "발행 시각 없음"}
             </time>
           </a>
         ))}
       </div>
       {feed.data?.items.length === 0 && (
         <p className="empty-state">
-          일치하는 기사가 없습니다. 검색 범위는 현재 수신한 RSS
-          제목·분류·출처입니다.
+          검색 결과가 없어요. 지금 받아 온 기사 제목에서만 찾아요.
         </p>
       )}
       <div className="provider-notes">
@@ -89,8 +87,8 @@ export function News({
             <a href={provider.source} target="_blank" rel="noreferrer">
               {provider.name}
             </a>{" "}
-            · 마지막 수신 {time(provider.receivedAt)}
-            {provider.stale ? ` · 이전 자료 표시 / ${provider.error}` : ""}
+            · 마지막 갱신 {time(provider.receivedAt)}
+            {provider.stale ? ` · 이전 내용 표시 / ${provider.error}` : ""}
           </p>
         ))}
       </div>
@@ -105,10 +103,10 @@ export function Market({ compact = false }: { compact?: boolean }) {
       <div className="section-heading">
         <div>
           <p className="eyebrow">MARKET / SOURCE CONNECTED</p>
-          <h2>가격은 실제로.</h2>
+          <h2>시세와 환율</h2>
         </div>
         <button onClick={market.refresh} disabled={market.loading}>
-          {market.loading ? "수신 중…" : "업데이트 ↻"}
+          {market.loading ? "불러오는 중…" : "새로 받기 ↻"}
         </button>
       </div>
       {market.error && (
@@ -119,7 +117,7 @@ export function Market({ compact = false }: { compact?: boolean }) {
         />
       )}
       <p className="data-note">
-        업비트 원화마켓 · 15초 간격 조회 · 전일 종가 대비 변동
+        업비트 원화 시세 · 15초마다 갱신 · 전일 대비
       </p>
       <div className="ticker-grid">
         {market.data?.coins?.data.map((coin) => (
@@ -140,8 +138,8 @@ export function Market({ compact = false }: { compact?: boolean }) {
       {!market.data?.coins && (
         <p className="empty-state">
           {market.loading
-            ? "거래소 데이터 수신 중…"
-            : "현재가를 수신하지 못했습니다. 가상 시세로 대체하지 않습니다."}
+            ? "시세 불러오는 중…"
+            : "시세를 받아 오지 못했어요."}
         </p>
       )}
       {market.data?.coins && (
@@ -150,16 +148,16 @@ export function Market({ compact = false }: { compact?: boolean }) {
           <a href="https://upbit.com" target="_blank" rel="noreferrer">
             Upbit
           </a>{" "}
-          · 서버 수신 {time(market.data.coins.receivedAt)}
+          · 갱신 {time(market.data.coins.receivedAt)}
           {market.data.coins.stale &&
             ` · 이전 시세 / ${market.data.coins.error}`}
         </p>
       )}
       {!compact && (
         <>
-          <h3 className="subheading">통화의 기준</h3>
+          <h3 className="subheading">환율</h3>
           <p className="data-note">
-            Frankfurter / ECB · 일별 기준환율 · 실시간 체결가가 아닙니다.
+            유럽중앙은행(ECB)의 하루 기준 환율이에요.
           </p>
           <div className="fx-grid">
             {market.data?.fx?.data.map((fx) => (
@@ -173,7 +171,7 @@ export function Market({ compact = false }: { compact?: boolean }) {
             ))}
           </div>
           {!market.data?.fx && (
-            <p className="empty-state">환율 공급자 수신 대기 또는 실패</p>
+            <p className="empty-state">환율을 불러오는 중이거나 받아 오지 못했어요.</p>
           )}
           {market.data?.fx && (
             <p className="data-note">
@@ -201,7 +199,7 @@ export function MapView() {
   const marker = useRef<L.Marker | null>(null);
   const circle = useRef<L.Circle | null>(null);
   const [message, setMessage] = useState(
-    "지도를 드래그하거나 확대해 탐색하세요. 시작 위치는 서울시청입니다.",
+    "지도를 끌거나 확대해 보세요. 처음 위치는 서울시청이에요.",
   );
   const [locating, setLocating] = useState(false);
   const [coordinates, setCoordinates] = useState({
@@ -222,7 +220,7 @@ export function MapView() {
     ).addTo(instance);
     tiles.on("tileerror", () =>
       setMessage(
-        "일부 지도 타일을 받지 못했습니다. 외부 지도 서버와 인터넷 연결을 확인하세요.",
+        "지도 일부를 불러오지 못했어요. 인터넷 연결을 확인해 주세요.",
       ),
     );
     return () => {
@@ -253,13 +251,13 @@ export function MapView() {
     });
     setMessage(
       accuracy
-        ? `브라우저 위치 수신 · 정확도 반경 약 ${number(accuracy, 0)}m. 위치 좌표는 실험 서버에 저장하지 않습니다.`
-        : "입력한 좌표로 이동했습니다.",
+        ? `현재 위치로 이동했어요. (오차 약 ${number(accuracy, 0)}m)`
+        : "입력한 좌표로 이동했어요.",
     );
   };
   const locate = () => {
     if (!navigator.geolocation) {
-      setMessage("이 브라우저는 위치 기능을 지원하지 않습니다.");
+      setMessage("이 브라우저에서는 위치 기능을 쓸 수 없어요.");
       return;
     }
     setLocating(true);
@@ -273,7 +271,7 @@ export function MapView() {
         setLocating(false);
       },
       (error) => {
-        setMessage(`현재 위치를 가져오지 못했습니다: ${error.message}`);
+        setMessage(`현재 위치를 가져오지 못했어요: ${error.message}`);
         setLocating(false);
       },
       { timeout: 10000, enableHighAccuracy: true },
@@ -289,7 +287,7 @@ export function MapView() {
       Math.abs(latitude) > 90 ||
       Math.abs(longitude) > 180
     ) {
-      setMessage("올바른 위도(-90~90), 경도(-180~180)를 입력하세요.");
+      setMessage("위도는 -90~90, 경도는 -180~180 사이로 입력해 주세요.");
       return;
     }
     move(latitude, longitude);
@@ -299,15 +297,14 @@ export function MapView() {
       <div className="section-heading">
         <div>
           <p className="eyebrow">EXPLORE YOUR SURROUNDINGS</p>
-          <h2>위치를 움직이다.</h2>
+          <h2>지도</h2>
         </div>
         <button onClick={locate} disabled={locating}>
           {locating ? "위치 확인 중…" : "내 위치 사용 ⌖"}
         </button>
       </div>
       <p className="data-note">
-        위치 권한은 버튼을 누를 때만 요청합니다. 해당 위치의 지도 타일 요청은
-        OpenStreetMap에 전달됩니다.
+        위치 권한은 버튼을 누를 때만 물어봐요.
       </p>
       <div
         className="interactive-map"
@@ -341,8 +338,8 @@ export function MapView() {
         <button>좌표로 이동</button>
       </form>
       <p className="scope-label">
-        외부 직접 연결 · 지도 타일은 로컬 API 장애 주입 대상이 아닙니다.
-        길찾기·교통정보 API는 연결하지 않았습니다.
+        지도는 OpenStreetMap에서 바로 받아 오기 때문에 장애의 영향을 받지
+        않아요.
       </p>
     </section>
   );
@@ -359,7 +356,7 @@ export function VideoView() {
     event.preventDefault();
     const value = parseVideoId(draft);
     if (!value) {
-      setError("YouTube 영상 주소 또는 11자리 영상 ID를 입력하세요.");
+      setError("YouTube 영상 주소를 넣어 주세요.");
       return;
     }
     setId(value);
@@ -370,7 +367,7 @@ export function VideoView() {
   return (
     <section>
       <p className="eyebrow">LISTEN / WATCH / STAY A LITTLE</p>
-      <h2>잠깐, 다른 리듬으로.</h2>
+      <h2>영상</h2>
       <div className="video-frame">
         <iframe
           key={`${id}-${playerRevision}`}
@@ -388,7 +385,7 @@ export function VideoView() {
               ? DEFAULT_VIDEO_TITLE
               : "선택한 YouTube 영상"}
           </h3>
-          <p className="data-note">실제 YouTube 플레이어 · 영상 ID: {id}</p>
+          <p className="data-note">영상 ID: {id}</p>
         </div>
         <a
           href={`https://www.youtube.com/watch?v=${id}`}
@@ -400,7 +397,7 @@ export function VideoView() {
       </div>
       <form className="video-form" onSubmit={submit}>
         <label>
-          음악·맛집·먹방, 보고 싶은 YouTube 링크
+          보고 싶은 YouTube 링크
           <input
             value={draft}
             onChange={(event) => setDraft(event.target.value)}
@@ -411,9 +408,8 @@ export function VideoView() {
       </form>
       {error && <p role="alert">{error}</p>}
       <p className="scope-label">
-        외부 직접 연결 · 저작권자 설정·지역·브라우저 정책에 따라 재생이 제한될
-        수 있습니다. iframe 내부 재생 상태는 측정하지 않으며, 로컬 API 장애를
-        영상 장애로 표현하지 않습니다.
+        영상은 YouTube에서 바로 재생되기 때문에 장애의 영향을 받지 않아요.
+        영상에 따라 재생이 막혀 있을 수 있어요.
       </p>
     </section>
   );
@@ -446,7 +442,7 @@ export function Community({
       feed.refresh();
       return true;
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "게시 요청 실패");
+      setMessage(error instanceof Error ? error.message : "글을 올리지 못했어요.");
       return false;
     } finally {
       setBusy(false);
@@ -459,10 +455,9 @@ export function Community({
   return (
     <section>
       <p className="eyebrow">SMALL TALKS, REAL CONNECTIONS</p>
-      <h2>서로의 기록.</h2>
+      <h2>카페</h2>
       <p className="data-note">
-        글·댓글·공감은 로컬 서버에 저장됩니다. 4초 간격으로 새 글 확인. 가짜
-        이용자 활동은 만들지 않습니다.
+        새 글은 4초마다 확인해요.
       </p>
       {profile ? (
         <form className="post-form" onSubmit={submit}>
@@ -493,7 +488,7 @@ export function Community({
       )}
       {feed.data?.posts.length === 0 && (
         <p className="empty-state">
-          아직 작성된 글이 없습니다. 첫 기록을 남겨 보세요.
+          아직 글이 없어요. 첫 글을 남겨 보세요.
         </p>
       )}
       <div className="posts">
@@ -572,11 +567,11 @@ export function ErrorNote({
     <div className="service-error" role="status">
       <strong>
         {stale
-          ? "새 자료를 받지 못해 마지막 내용을 유지합니다."
-          : "요청을 완료하지 못했습니다."}
+          ? "새 내용을 받지 못해 이전 내용을 보여 주고 있어요."
+          : "불러오지 못했어요."}
       </strong>
       <p>{message}</p>
-      {retry && <button onClick={retry}>다시 요청</button>}
+      {retry && <button onClick={retry}>다시 시도</button>}
     </div>
   );
 }
@@ -614,8 +609,8 @@ export function LabImage({ version }: { version: number }) {
           );
         }}
       />
-      {failed && <span>이미지를 불러오지 못했습니다.</span>}
-      <small>LOCAL ASSET / 실험 이미지</small>
+      {failed && <span>이미지를 불러오지 못했어요.</span>}
+      <small>실험용 이미지</small>
     </div>
   );
 }
